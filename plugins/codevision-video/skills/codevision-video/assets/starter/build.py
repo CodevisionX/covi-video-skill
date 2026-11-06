@@ -11,8 +11,11 @@ from pathlib import Path
 HERE = Path(__file__).parent
 VOICE = ["--voice", "ko-KR-SunHiNeural", "--rate=+5%"]
 
-SCREEN = dict(left=210, top=124, width=1500, height=844)
+SCREEN = dict(left=210, top=124, width=1500, height=810)
 PAD = 12
+SUB_MAX_WIDTH = 1660
+SUB_FONT = 40
+MP3_TAIL = 0.8
 
 # vo: (시작, 파일 이름, 자막[, 읽을 대본]). 영문 이름은 TTS 가 영어식으로 읽으니 대본은 한글 발음으로 따로 쓴다.
 SCENES = [
@@ -64,6 +67,10 @@ def box(r):
 
 def esc(s):
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def sub_width(text):
+    return sum(SUB_FONT * (0.92 if ord(c) > 0x2000 else 0.54) for c in text)
 
 
 def voices():
@@ -133,9 +140,13 @@ def clip(sc, t):
           f'tl.fromTo("#{sid} .frame, #{sid}-v", {{ opacity: 0, scale: 0.97 }}, {{ opacity: 1, scale: 1, duration: 0.5, ease: "power3.out" }}, {t});']
     k = v["width"] / size(sc["src"])[0]
     for i, (m0, m1, mx, my, mw, mh) in enumerate(sc.get("marks", [])):
+        h = mh * k + 12
+        arm = round(min(32, h * 0.4))
         body.append(f'<div id="{sid}-m{i}" class="clip mark" data-start="{round(t + m0, 2)}" data-duration="{round(m1 - m0, 2)}" data-track-index="4" '
-                    f'style="left:{round(v["left"] + mx * k - 6, 1)}px;top:{round(v["top"] + my * k - 6, 1)}px;width:{round(mw * k + 12, 1)}px;height:{round(mh * k + 12, 1)}px"></div>')
-        js.append(f'tl.fromTo("#{sid}-m{i}", {{ opacity: 0, scale: 1.15 }}, {{ opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2)" }}, {round(t + m0, 2)});')
+                    f'style="left:{round(v["left"] + mx * k - 6, 1)}px;top:{round(v["top"] + my * k - 6, 1)}px;width:{round(mw * k + 12, 1)}px;height:{round(h, 1)}px;--arm:{arm}px"><i></i><i></i><i></i><i></i></div>')
+        js.append(f'tl.fromTo("#{sid}-m{i}", {{ opacity: 0 }}, {{ opacity: 1, duration: 0.45, ease: "power2.out" }}, {round(t + m0, 2)});')
+        for n, (dx, dy) in enumerate(((-14, -14), (14, -14), (-14, 14), (14, 14)), 1):
+            js.append(f'tl.fromTo("#{sid}-m{i} i:nth-child({n})", {{ x: {dx}, y: {dy} }}, {{ x: 0, y: 0, duration: 0.6, ease: "power3.out" }}, {round(t + m0, 2)});')
     for i, (at, _) in enumerate(sp):
         if i:
             js.append(f'tl.set("#{sid}-sp{i}", {{ display: "none" }}, 0);')
@@ -188,19 +199,27 @@ def build():
     dup = {n for n in names if names.count(n) > 1}
     assert not dup, f"vo 이름 중복: {dup}"
     t = 0.0
-    body, subs, audio, js = [], [], [], []
+    body, subs, audio, js, cues = [], [], [], [], []
     for sc in SCENES:
         if sc["kind"] == "clip" and "length" not in sc:
             sc["length"] = round(dur(sc["src"]) + 0.3, 2)
         b, j = KINDS[sc["kind"]](sc, t)
         body += b
         js += j
-        for at, name, text, *_ in sc["vo"]:
-            vd = dur(f"assets/vo/{name}.mp3")
-            subs.append(f'<div id="sub-{name}" class="clip sub" data-start="{round(t + at, 2)}" data-duration="{round(vd + 0.3, 2)}" data-track-index="2">{esc(text)}</div>')
-            audio.append(f'<audio id="vo-{name}" data-start="{round(t + at, 2)}" data-duration="{round(vd, 2)}" data-track-index="3" src="assets/vo/{name}.mp3"></audio>')
-            js.append(f'tl.from("#sub-{name}", {{ opacity: 0, y: 12, duration: 0.3 }}, {round(t + at, 2)});')
+        cues += [(round(t + at, 2), name, text, dur(f"assets/vo/{name}.mp3")) for at, name, text, *_ in sc["vo"]]
         t = round(t + sc["length"], 2)
+
+    cues.sort()
+    for i, (start, name, text, vd) in enumerate(cues):
+        next_start = cues[i + 1][0] if i + 1 < len(cues) else None
+        shown = vd + 0.3 if next_start is None else min(vd + 0.3, next_start - start)
+        if next_start is not None and start + vd - MP3_TAIL > next_start:
+            print(f"내레이션 겹침, 다음 시작을 늦추세요: {name}", file=sys.stderr)
+        if sub_width(text) > SUB_MAX_WIDTH:
+            print(f"자막 두 줄 예상, 내레이션을 나누세요: {name}", file=sys.stderr)
+        subs.append(f'<div id="sub-{name}" class="clip sub" data-start="{start}" data-duration="{round(shown, 2)}" data-track-index="2">{esc(text)}</div>')
+        audio.append(f'<audio id="vo-{name}" data-start="{start}" data-duration="{round(vd, 2)}" data-track-index="3" src="assets/vo/{name}.mp3"></audio>')
+        js.append(f'tl.from("#sub-{name}", {{ opacity: 0, y: 12, duration: 0.3 }}, {start});')
 
     html = (HERE / "template.tpl").read_text(encoding="utf-8")
     html = html.replace("{{DURATION}}", str(t)).replace("{{BODY}}", "\n".join(body + subs + audio)).replace("{{JS}}", "\n      ".join(js))
