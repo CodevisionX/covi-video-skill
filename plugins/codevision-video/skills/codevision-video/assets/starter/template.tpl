@@ -62,7 +62,7 @@
       .chip { position: absolute; left: 96px; top: 56px; display: flex; gap: 14px; align-items: center; }
       .chip .step { background: var(--brand); color: #fff; font-size: 26px; font-weight: 700; padding: 10px 22px; border-radius: 999px; }
       .chip .label { font-size: 30px; font-weight: 700; color: var(--ink); }
-      .speed { position: absolute; right: 96px; top: 60px; background: #fff; border: 1px solid var(--line); color: var(--brand); font-size: 30px; font-weight: 700; padding: 10px 24px; border-radius: 999px; }
+      .speed { position: absolute; right: 96px; top: 60px; background: #fff; border: 1px solid var(--line); color: var(--brand); font-size: 24px; font-weight: 700; padding: 10px 20px; border-radius: 999px; }
       .frame { position: absolute; border-radius: 22px; box-shadow: var(--lift); background: #fff; border: 1px solid var(--line); }
       video.vid { inset: auto; position: absolute; object-fit: contain; border-radius: 10px; z-index: 2; }
 
