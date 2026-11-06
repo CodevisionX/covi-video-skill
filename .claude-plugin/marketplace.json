@@ -1,0 +1,13 @@
+{
+  "name": "covi",
+  "description": "코드비전 사내 Claude Code 플러그인",
+  "owner": { "name": "CodevisionX" },
+  "plugins": [
+    {
+      "name": "codevision-video",
+      "source": "./plugins/codevision-video",
+      "description": "코드비전 사내 영상 제작. 녹화 편집과 소개 영상을 회사 톤으로 만든다.",
+      "category": "productivity"
+    }
+  ]
+}
