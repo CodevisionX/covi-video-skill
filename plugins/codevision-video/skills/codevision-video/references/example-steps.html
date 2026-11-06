@@ -6,19 +6,23 @@
       @font-face { font-family: "Pretendard"; font-weight: 800; src: url("assets/fonts/Pretendard-ExtraBold.woff2") format("woff2"); }
       [data-composition-id="steps"] { position: absolute; inset: 0; font-family: "Pretendard", sans-serif; color: #0b1a3a; letter-spacing: -0.02em; }
       [data-composition-id="steps"] .head { position: absolute; left: 96px; top: 56px; display: flex; gap: 14px; align-items: center; }
-      [data-composition-id="steps"] .head .step { background: #002387; color: #fff; font-size: 26px; font-weight: 700; padding: 10px 22px; border-radius: 999px; }
+      [data-composition-id="steps"] .head .step { background: #002387; color: #fff; font-size: 30px; font-weight: 700; padding: 10px 24px; border-radius: 999px; }
       [data-composition-id="steps"] .head .label { font-size: 30px; font-weight: 700; }
       [data-composition-id="steps"] .count { position: absolute; right: 96px; top: 44px; font-size: 64px; font-weight: 800; color: #002387; font-variant-numeric: tabular-nums; }
-      [data-composition-id="steps"] .count small { font-size: 32px; color: #8a94ab; font-weight: 700; }
-      [data-composition-id="steps"] .grid { position: absolute; left: 96px; right: 96px; top: 140px; bottom: 150px; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 18px; }
-      [data-composition-id="steps"] .group { background: #fff; border: 1px solid #d9dfeb; border-radius: 24px; padding: 18px 28px; }
-      [data-composition-id="steps"] .group h3 { font-size: 27px; font-weight: 800; color: #002387; margin-bottom: 6px; }
-      [data-composition-id="steps"] .group li { list-style: none; font-size: 21px; font-weight: 500; color: #4a5670; padding: 3px 0; display: flex; align-items: center; gap: 10px; }
-      [data-composition-id="steps"] .group li i { width: 22px; height: 22px; border-radius: 50%; background: #e3e9f8; flex: none; display: inline-flex; align-items: center; justify-content: center; font-style: normal; font-size: 14px; font-weight: 800; color: #fff; }
+      [data-composition-id="steps"] .count small { font-size: 32px; color: #4a5670; font-weight: 700; }
+      [data-composition-id="steps"] .rail { position: absolute; left: 96px; top: 160px; width: 600px; list-style: none; }
+      [data-composition-id="steps"] .rail li { height: 76px; display: flex; align-items: center; gap: 20px; font-size: 34px; font-weight: 800; color: #4a5670; }
+      [data-composition-id="steps"] .rail i { width: 18px; height: 18px; border: 2px solid #002387; flex: none; }
+      [data-composition-id="steps"] .panel { position: absolute; left: 740px; right: 96px; top: 160px; height: 684px; background: #fff; border: 1px solid #d9dfeb; border-radius: 22px; box-shadow: 0 6px 16px rgba(11, 26, 58, 0.12); padding: 44px 64px; opacity: 0; }
+      [data-composition-id="steps"] .panel.first { opacity: 1; }
+      [data-composition-id="steps"] .panel h3 { font-size: 44px; font-weight: 800; color: #002387; margin-bottom: 28px; }
+      [data-composition-id="steps"] .panel li { list-style: none; font-size: 36px; font-weight: 500; color: #4a5670; padding: 13px 0; display: flex; align-items: center; gap: 20px; }
+      [data-composition-id="steps"] .panel svg { width: 36px; height: 36px; flex: none; fill: none; stroke: #d9dfeb; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
     </style>
     <div class="head"><span class="step">3단계</span><span class="label">설치 명령이 하는 일</span></div>
     <div class="count"><span id="steps-n">0</span><small> / 35</small></div>
-    <div class="grid" id="steps-grid"></div>
+    <ul class="rail" id="steps-rail"></ul>
+    <div id="steps-panels"></div>
     <script>
       const groups = [
         ["준비", ["공정 선택", "호스트명", "기본 패키지", "SSH 서버", "한글 입력기"]],
@@ -31,26 +35,38 @@
         ["드라이버", ["드라이버 반입", "Intel NPU 드라이버", "Intel iGPU 런타임", "Hikrobot MVS", "커널 고정", "카메라 NIC"]],
         ["검사 프로그램", ["플랫폼 설치 (covi setup)"]],
       ];
-      const grid = document.getElementById("steps-grid");
-      groups.forEach(([title, items]) => {
-        const g = document.createElement("div");
-        g.className = "group";
-        g.innerHTML = `<h3>${title}</h3><ul>${items.map((t) => `<li><i>✓</i>${t}</li>`).join("")}</ul>`;
-        grid.appendChild(g);
+      const rail = document.getElementById("steps-rail");
+      const panels = document.getElementById("steps-panels");
+      const check = '<svg viewBox="0 0 24 24"><path d="M4 13l5 5L20 6"/></svg>';
+      groups.forEach(([title, items], i) => {
+        rail.insertAdjacentHTML("beforeend", `<li><i></i>${title}</li>`);
+        panels.insertAdjacentHTML("beforeend", `<div class="panel${i ? "" : " first"}"><h3>${title}</h3><ul>${items.map((t) => `<li>${check}${t}</li>`).join("")}</ul></div>`);
       });
 
       const tl = gsap.timeline({ paused: true });
       const counter = { n: 0 };
       const n = document.getElementById("steps-n");
-      tl.from("#steps-grid .group", { opacity: 0, y: 24, duration: 0.4, stagger: 0.12, ease: "power2.out" }, 0);
-      const items = grid.querySelectorAll("li");
-      const per = 9.5 / items.length;
-      items.forEach((li, i) => {
-        const at = 1.2 + i * per;
-        tl.fromTo(li.querySelector("i"), { scale: 0.6, backgroundColor: "#e3e9f8" }, { scale: 1, backgroundColor: "#12a150", duration: 0.25, ease: "back.out(3)" }, at);
-        tl.fromTo(li, { color: "#8a94ab" }, { color: "#0b1a3a", duration: 0.2 }, at);
+      const total = groups.reduce((sum, [, items]) => sum + items.length, 0);
+      const per = 9.5 / total;
+      const rows = rail.querySelectorAll("li");
+      const sheets = panels.querySelectorAll(".panel");
+      tl.from(rows, { opacity: 0, duration: 0.25, stagger: 0.08, ease: "expo.out" }, 0);
+      let at = 1.2;
+      groups.forEach(([, items], g) => {
+        if (g) {
+          tl.set(sheets[g - 1], { opacity: 0 }, at);
+          tl.set(sheets[g], { opacity: 1 }, at);
+          tl.set(rows[g - 1], { color: "#4a5670" }, at);
+        }
+        tl.set(rows[g], { color: "#002387" }, at);
+        tl.set(rows[g].querySelector("i"), { backgroundColor: "#002387" }, at);
+        sheets[g].querySelectorAll("li").forEach((li) => {
+          tl.to(li.querySelector("svg"), { stroke: "#12a150", duration: 0.15, ease: "expo.out" }, at);
+          tl.to(li, { color: "#0b1a3a", duration: 0.15, ease: "expo.out" }, at);
+          at += per;
+        });
       });
-      tl.to(counter, { n: 35, duration: 9.5, ease: "none", onUpdate: () => (n.textContent = Math.round(counter.n)) }, 1.2);
+      tl.to(counter, { n: total, duration: 9.5, ease: "none", onUpdate: () => (n.textContent = Math.round(counter.n)) }, 1.2);
       window.__timelines = window.__timelines || {};
       window.__timelines["steps"] = tl;
     </script>
