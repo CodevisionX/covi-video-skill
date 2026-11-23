@@ -2,7 +2,7 @@
 
 ## 목소리
 
-edge-tts `ko-KR-SunHiNeural`, `--rate=+5%`. 설치 없이 uvx 로 돈다.
+edge-tts `ko-KR-SunHiNeural`, `--rate=+5%`. 설치 없이 uvx 로 돈다. 현장 작업자 교육처럼 처음 보는 사람 앞에서 트는 영상은 `build.py` 의 `VOICE` 를 `+0%` 로 낮춘다.
 
 ```bash
 uvx --from edge-tts edge-tts --voice ko-KR-SunHiNeural --rate=+5% --text "…" --write-media assets/vo/s1.mp3

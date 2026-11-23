@@ -2,6 +2,7 @@
 
 python3 build.py      index.html 생성
 python3 build.py vo   빠진 내레이션 mp3 만들기 (대본이 바뀌면 그 mp3 를 지우고 다시)
+python3 build.py bgm  배경음악·효과음 만들기 (내레이션이나 장면 시각이 바뀌면 다시)
 """
 import json
 import subprocess
@@ -16,6 +17,7 @@ PAD = 12
 SUB_MAX_WIDTH = 1660
 SUB_FONT = 40
 MP3_TAIL = 0.8
+SFX = []
 
 # vo: (시작, 파일 이름, 자막[, 읽을 대본]). 영문 이름은 TTS 가 영어식으로 읽으니 대본은 한글 발음으로 따로 쓴다.
 SCENES = [
@@ -93,6 +95,7 @@ def title(sc, t):
     body = f'''<section id="{sc["id"]}" class="clip title" data-start="{t}" data-duration="{sc["length"]}" data-track-index="0">
   <img src="assets/logo.png" alt="" /><h1>{esc(sc["title"])}</h1><p>{esc(sc.get("subtitle", ""))}</p>
 </section>'''
+    SFX.append((round(t + 0.1, 2), "chime"))
     return [body], [f'tl.from("#{sc["id"]} > *", {{ opacity: 0, y: 30, duration: 0.7, stagger: 0.2, ease: "power3.out" }}, {t + 0.1});']
 
 
@@ -144,6 +147,7 @@ def clip(sc, t):
         arm = round(min(32, h * 0.4))
         body.append(f'<div id="{sid}-m{i}" class="clip mark" data-start="{round(t + m0, 2)}" data-duration="{round(m1 - m0, 2)}" data-track-index="4" '
                     f'style="left:{round(v["left"] + mx * k - 6, 1)}px;top:{round(v["top"] + my * k - 6, 1)}px;width:{round(mw * k + 12, 1)}px;height:{round(h, 1)}px;--arm:{arm}px"><i></i><i></i><i></i><i></i></div>')
+        SFX.append((round(t + m0, 2), "pop"))
         js.append(f'tl.fromTo("#{sid}-m{i}", {{ opacity: 0 }}, {{ opacity: 1, duration: 0.45, ease: "power2.out" }}, {round(t + m0, 2)});')
         for n, (dx, dy) in enumerate(((-14, -14), (14, -14), (-14, 14), (14, 14)), 1):
             js.append(f'tl.fromTo("#{sid}-m{i} i:nth-child({n})", {{ x: {dx}, y: {dy} }}, {{ x: 0, y: 0, duration: 0.6, ease: "power3.out" }}, {round(t + m0, 2)});')
@@ -183,6 +187,7 @@ def flow(sc, t):
         at = round(t + at, 2)
         if i:
             js.append(f'tl.fromTo("#{sid}-a{i}", {{ scaleX: 0 }}, {{ scaleX: 1, duration: 0.35, ease: "power2.out" }}, {round(at - 0.35, 2)});')
+        SFX.append((at, "pop"))
         js.append(f'tl.fromTo("#{sid}-n{i}", {{ opacity: 0.25, y: 24 }}, {{ opacity: 1, y: 0, duration: 0.5, ease: "back.out(1.6)" }}, {at});')
         js.append(f'tl.to("#{sid}-n{i}", {{ borderColor: "#002387", duration: 0.3 }}, {at});')
         if icon == "verdict":
@@ -194,22 +199,39 @@ def flow(sc, t):
 KINDS = dict(title=title, card=card, end=end, sub=sub, clip=clip, flow=flow)
 
 
-def build():
-    names = [name for name, _ in voices()]
-    dup = {n for n in names if names.count(n) > 1}
-    assert not dup, f"vo 이름 중복: {dup}"
+def scenes():
+    """장면 HTML·GSAP·내레이션 시각을 만들고, 그 과정에서 효과음 시각을 SFX 에 모은다."""
+    SFX.clear()
     t = 0.0
-    body, subs, audio, js, cues = [], [], [], [], []
-    for sc in SCENES:
+    body, js, cues = [], [], []
+    for i, sc in enumerate(SCENES):
         if sc["kind"] == "clip" and "length" not in sc:
             sc["length"] = round(dur(sc["src"]) + 0.3, 2)
+        if i:
+            SFX.append((round(t - 0.3, 2), "whoosh"))
         b, j = KINDS[sc["kind"]](sc, t)
         body += b
         js += j
         cues += [(round(t + at, 2), name, text, dur(f"assets/vo/{name}.mp3")) for at, name, text, *_ in sc["vo"]]
         t = round(t + sc["length"], 2)
-
     cues.sort()
+    return t, body, js, cues
+
+
+def make_sound():
+    import bgm
+    import sfx
+    t, _, _, cues = scenes()
+    bgm.render(HERE / "assets/bgm.mp3", t, [(start, vd - MP3_TAIL) for start, _, _, vd in cues])
+    sfx.render(HERE / "assets/sfx.mp3", t, sorted(SFX))
+
+
+def build():
+    names = [name for name, _ in voices()]
+    dup = {n for n in names if names.count(n) > 1}
+    assert not dup, f"vo 이름 중복: {dup}"
+    t, body, js, cues = scenes()
+    subs, audio = [], []
     for i, (start, name, text, vd) in enumerate(cues):
         next_start = cues[i + 1][0] if i + 1 < len(cues) else None
         shown = vd + 0.3 if next_start is None else min(vd + 0.3, next_start - start)
@@ -218,8 +240,12 @@ def build():
         if sub_width(text) > SUB_MAX_WIDTH:
             print(f"자막 두 줄 예상, 내레이션을 나누세요: {name}", file=sys.stderr)
         subs.append(f'<div id="sub-{name}" class="clip sub" data-start="{start}" data-duration="{round(shown, 2)}" data-track-index="2">{esc(text)}</div>')
-        audio.append(f'<audio id="vo-{name}" data-start="{start}" data-duration="{round(vd, 2)}" data-track-index="3" src="assets/vo/{name}.mp3"></audio>')
+        # mp3 끝의 무음끼리 겹치면 같은 트랙 겹침 경고가 나서 두 트랙을 번갈아 쓴다.
+        audio.append(f'<audio id="vo-{name}" data-start="{start}" data-duration="{round(vd, 2)}" data-track-index="{3 if i % 2 == 0 else 6}" src="assets/vo/{name}.mp3"></audio>')
         js.append(f'tl.from("#sub-{name}", {{ opacity: 0, y: 12, duration: 0.3 }}, {start});')
+    for track, name in ((5, "bgm"), (7, "sfx")):
+        if (HERE / f"assets/{name}.mp3").exists():
+            audio.append(f'<audio id="{name}" data-start="0" data-duration="{t}" data-track-index="{track}" src="assets/{name}.mp3"></audio>')
 
     html = (HERE / "template.tpl").read_text(encoding="utf-8")
     html = html.replace("{{DURATION}}", str(t)).replace("{{BODY}}", "\n".join(body + subs + audio)).replace("{{JS}}", "\n      ".join(js))
@@ -229,5 +255,7 @@ def build():
 
 if sys.argv[1:] == ["vo"]:
     make_vo()
+elif sys.argv[1:] == ["bgm"]:
+    make_sound()
 else:
     build()

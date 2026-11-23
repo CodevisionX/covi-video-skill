@@ -17,18 +17,21 @@ INSTALL = {
         "uv": "winget install astral-sh.uv",
         "ffmpeg": "winget install Gyan.FFmpeg",
         "python": "winget install Python.Python.3.12",
+        "numpy": "py -3 -m pip install numpy",
     },
     "Linux": {
         "node": "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash && nvm install 22",
         "uv": "curl -LsSf https://astral.sh/uv/install.sh | sh",
         "ffmpeg": "sudo apt install -y ffmpeg",
         "python": "sudo apt install -y python3",
+        "numpy": "sudo apt install -y python3-numpy",
     },
     "Darwin": {
         "node": "brew install node",
         "uv": "brew install uv",
         "ffmpeg": "brew install ffmpeg",
         "python": "brew install python",
+        "numpy": "brew install numpy",
     },
 }
 
@@ -52,6 +55,12 @@ def main():
 
     py_ok = sys.version_info[:2] >= MIN_PYTHON
     report("python", py_ok, platform.python_version(), "python")
+
+    try:
+        import numpy
+        report("numpy", True, f"{numpy.__version__} (배경음악·효과음 합성)", "numpy")
+    except ImportError:
+        report("numpy", False, "없음 (배경음악·효과음 합성에 필요)", "numpy")
 
     node = version_of("node")
     major = int(re.search(r"\d+", node).group()) if node and re.search(r"\d+", node) else 0
